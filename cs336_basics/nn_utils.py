@@ -41,7 +41,7 @@ class Linear(nn.Module):
     def forward(self,x: torch.Tensor) -> torch.Tensor:
         ans = x @ self.weight.T
         assert ans.shape[-1:] == (self.out_features,)
-        return x @ self.weight.T
+        return ans
 
 class Embedding(nn.Module):
     def __init__(self,
@@ -380,13 +380,12 @@ def lr_cosine_schedule(t: int,lr_max: float,lr_min: float,T_w: int,T_c: int) -> 
 
 
 def gradient_clipping(parameters: Iterable[nn.Parameter],max_l2_norm: float,eps = 1e-6):
-    total_norm_sq = 0.0
+    total_grad = []
     for p in parameters:
-        if p.grad is None:
-            continue
-        total_norm_sq += p.grad.norm().item()**2
-    total_norm_sq  = math.sqrt(total_norm_sq)
-    if total_norm_sq   > max_l2_norm:
+        if p.grad is not None:
+            total_grad.append(p.grad.flatten())       # 原地修改
+    total_norm_sq = torch.cat(total_grad).norm().item()
+    if total_norm_sq > max_l2_norm:
         for p in parameters:
             if p.grad is None:
                 continue
