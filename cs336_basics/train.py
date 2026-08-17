@@ -47,7 +47,7 @@ def parse_args():
     parser.add_argument("--log_every",type=int,default=10)
     parser.add_argument("--val_every",type=int,default=100)
     parser.add_argument("--save_every",type=int,default=1000)
-    parser.add_argument("--log_dir",type=str,default="data/log")
+    parser.add_argument("--log_dir",type=str,default="test_log")
 
     parser.add_argument("--overfit",action="store_true",help="过拟合单个minibatch的调试模式")
         
@@ -65,11 +65,13 @@ if  __name__=="__main__":
         args.cosine_cycle_iters = args.total_steps 
     # load data
     train_data = np.memmap(args.train_path,dtype=np.uint16,mode="r")
-    val_data   = np.memmap(args.train_path,dtype=np.uint16,mode="r")
+    val_data   = np.memmap(args.val_path,dtype=np.uint16,mode="r")
 
+    new_dir = Path("data/log") / args.log_dir
+    new_dir.mkdir(parents=True,exist_ok=True)
     start = time.perf_counter()
-    train_path = Path(args.log_dir) / "train_log.csv" 
-    val_path = Path(args.log_dir) / "val_log.csv" 
+    train_path = new_dir / "train_log.csv"
+    val_path = new_dir / "val_log.csv" 
     with open(train_path,'w',newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["step","wall_time","train_loss"])
@@ -121,7 +123,7 @@ if  __name__=="__main__":
                 writer.writerow([t,elapsed,val_loss.item()])
 
         if t % args.save_every == 0:
-            nn_utils.save_checkpoint(model,optimizer,t,(Path(args.log_dir) / "checkpoint.pt"))
+            nn_utils.save_checkpoint(model,optimizer,t,(new_dir / "checkpoint.pt"))
             print(f"checkpoint saved at step {t}")
 
     with torch.no_grad():
@@ -135,7 +137,7 @@ if  __name__=="__main__":
     param_dict["elapsed"] = time.perf_counter() - start
     param_dict = { k:str(v) for k,v in param_dict.items()}                 # 遍历dict默认得到键，遍历dict.items()才得到键值
 
-    experiment_log_path = Path(args.log_dir) / "experiment_log.md"
+    experiment_log_path = new_dir / "experiment_log.md"
     if not experiment_log_path.exists():
         with open(experiment_log_path,'w') as f:
             f.write("|"+"|".join(param_dict.keys())+"|\n")
