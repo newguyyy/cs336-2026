@@ -25,6 +25,7 @@ def parse_args():
     parser.add_argument("--num_heads",type=int,default=25)
     parser.add_argument("--d_ff",type=int,default=4288)
     parser.add_argument("--rope_theta",type=float,default=50000)
+    parser.add_argument("--no_rope",action="store_true")
     
     # train params
     parser.add_argument("--batch_size",type=int,default=64)
@@ -82,7 +83,7 @@ if  __name__=="__main__":
             
     # load the model and optimizer
     model = nn_utils.TransformLM(vocab_size=args.vocab_size,context_length=args.context_length,num_layers=args.num_layers,
-                                 d_model=args.d_model,num_heads=args.num_heads,d_ff=args.d_ff,rope_theta=args.rope_theta,device=args.device)
+                                 d_model=args.d_model,num_heads=args.num_heads,d_ff=args.d_ff,rope_theta=args.rope_theta,device=args.device,rope=not args.no_rope)
     optimizer = nn_utils.AdamW(model.parameters(),lr=0.0,weight_decay=args.weight_decay,betas=(args.beta1,args.beta2),eps=args.eps)
 
     if args.overfit:

@@ -160,6 +160,7 @@ class MultiheadSelfAttention(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.num_heads = num_heads
+        self.rope_control = rope
         if rope:
             self.max_seq_len = max_seq_len
             self.theta = theta
@@ -181,7 +182,7 @@ class MultiheadSelfAttention(nn.Module):
         V = rearrange(V," ... sql (h d_v) -> ... h sql d_v",h = self.num_heads)
 
         # rope
-        if token_positions is not None:
+        if self.rope_control:
             Q = self.rope(Q,token_positions)
             K = self.rope(K,token_positions)
             
@@ -194,19 +195,22 @@ class MultiheadSelfAttention(nn.Module):
         return einsum(multiheads,self.output_proj.weight,"... seq d,d_model d -> ... seq d_model")     # type: ignore
 
 
-        
 class TransformerBlock(nn.Module):
-    def __init__(self,d_model: int,num_heads: int,d_ff: int, max_seq_len: int,theta: float,device = None,dtype = None):
+    def __init__(self,d_model: int,num_heads: int,d_ff: int, max_seq_len: int,theta: float,rope=False,device = None,dtype = None):  
         super().__init__()
+        self.rope = rope
         self.ln1 = RMSnorm(d_model=d_model,device=device)          # for first sub-layer
         self.ln2 = RMSnorm(d_model=d_model,device=device)
         self.ffn = SwiGLU(d_model=d_model,d_ff=d_ff,device=device)
-        self.attn = MultiheadSelfAttention(d_model=d_model,num_heads=num_heads,max_seq_len=max_seq_len,theta=theta,rope=True,device=device)
+        self.attn = MultiheadSelfAttention(d_model=d_model,num_heads=num_heads,max_seq_len=max_seq_len,theta=theta,rope=rope,device=device)
 
     def forward(self,x: Float[Tensor," batch seq_len d_model"]) -> Float[Tensor,"batch seq_len d_model"]:
         seq_len = x.size(-2)
-        token_position = torch.arange(seq_len,device=x.device)
-        x = x + self.attn(self.ln1(x),token_position)
+        if self.rope:
+            token_position = torch.arange(seq_len,device=x.device)
+            x = x + self.attn(self.ln1(x),token_position)
+        else:
+            x = x + self.attn(self.ln1(x))
         return x + self.ffn(self.ln2(x))
         
 
@@ -219,6 +223,7 @@ class TransformLM(nn.Module):
                  num_heads: int,
                  d_ff: int,
                  rope_theta: float,
+                 rope = True,
                  device: torch.device | None = None,
                  dtype: torch.dtype | None = None
     ):
@@ -264,7 +269,7 @@ class TransformLM(nn.Module):
         super().__init__()
         self.token_embeddings  = Embedding(vocab_size,d_model,device=device)
         self.layers = nn.ModuleList([
-            TransformerBlock(d_model,num_heads,d_ff,context_length,rope_theta,device=device)
+            TransformerBlock(d_model,num_heads,d_ff,context_length,rope_theta,device=device,rope=rope)
             for _ in range(num_layers)
         ])
         self.ln_final = RMSnorm(d_model,device=device)          # 在所有 Transformer Block以后再做一个 RMSNorm 
