@@ -5,7 +5,7 @@ import os
 
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 def pre_tokenize(segments:list[str]) -> dict[tuple[bytes,...],int]:
-    pre_token = {}          #dict[tuple[bytes,...],int]
+    pre_token = {}          #dict[tuple[bytes,...],int]     (word, frequency)
     for segment in segments:
         if not segment:           #跳过空字符
             continue

@@ -74,6 +74,7 @@ class   Tokenizer:
                     token_str = m.group()
                     token_bytes_tuple = tuple(bytes([t]) for t in token_str.encode("utf-8"))
                     # 遍历merges直到不能merge为止  encode 的merge步骤是对每个pre-token独立做的
+                    # enumerate merges  -> enumerate pre-token, index使得可以快速查找最小rank的pair
                     token = list(token_bytes_tuple)
                     while True:
                         best_rank = float('inf')
