@@ -13,17 +13,17 @@ import regex as re
 PAT = r"""'(?:[sdmt]|ll|ve|re)| ?\p{L}+| ?\p{N}+| ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+"""
 delimiter = re.escape("<|endoftext|>")
 
-def worker(args) ->dict[tuple[bytes,...],int]:
+def worker(args) ->dict[tuple[bytes,...],int]:     # 把 I/O 和 decode 留在子进程里做，父进程只负责切分和汇总
     """
     Returns:
         预分词的后的[word,freq]
     """
     file_path,start,end  = args
-    with open(file_path,"rb") as f:
+    with open(file_path,"rb") as f:            # find_chunk_boundaries返回的是字节偏移,所以只能以二进制形式打开
         f.seek(start)
         chunk_bytes = f.read(end-start)
         chunk_str = chunk_bytes.decode("utf-8",errors = "ignore")
-        segments = re.split(delimiter,chunk_str)
+        segments = re.split(delimiter,chunk_str)    # "rb"是以二进制形式打开,需要decode为str才可以split
         return pre_tokenize(segments)
 
 if __name__ == "__main__":
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     num_workers =  2
     num_chunks = 40
     with open(file_path,"rb") as f:
-        boundaries = find_chunk_boundaries(f,num_chunks,b"<|endoftext|>")
+        boundaries = find_chunk_boundaries(f,num_chunks,b"<|endoftext|>")  # num_chunks=40 是请求，不是保证。 实际块数取决于分隔符是否足够多、分布是否够散。
     # 准备任务列表
     tasks = [(file_path,start,end) for start,end in 
                 zip(boundaries[:-1],boundaries[1:])]
