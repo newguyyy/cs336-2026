@@ -435,26 +435,30 @@ def load_checkpoint(
     return checkpoint["iteration"]
 
     
-def decoding (tokenizer: Tokenizer,model: TransformLM,prompt: str,max_num: int,tem: float,top_p: float) -> str:
+def decoding (tokenizer: Tokenizer,model: TransformLM,max_context_length:int ,prompt: str,max_num: int,tem: float,top_p: float) -> str:
     device  = next(model.parameters()).device
     tokens = torch.tensor(tokenizer.encode(prompt),device=device,dtype = torch.long)
     tokens = rearrange(tokens,"seq_len -> 1 seq_len")
     endID = tokenizer.byte_to_id[b"<|endoftext|>"]
-    for i in range(max_num):
-        logits = model(tokens)
-        # decode trick
-        logits = logits/tem
-        prob = softmax(logits[:,-1,:],-1).squeeze(0)           # prob   (vocab,)
-        prob_sorted,indices_sorted = torch.sort(prob,descending=True)
-        prob_cumsum = prob_sorted.cumsum(dim=-1)
-        k = torch.searchsorted(prob_cumsum,top_p)
-        prob_top_p = prob_sorted*(torch.arange(prob.size(-1)) <= k)
-        prob_top_p_twodim = rearrange(prob_top_p," vocab_size -> 1 vocab_size")
-        next_token = indices_sorted[torch.multinomial(prob_top_p_twodim,1).item()]             # multinomial能够实现归一化   # type: ignore
-        if next_token == endID:
-            break
-        next_token = next_token.reshape(1,1)
-        tokens = torch.cat([tokens,next_token],dim=-1)
+    with torch.no_grad():
+        for i in range(max_num):
+            if tokens.shape[1] >= max_context_length:
+                break
+            logits = model(tokens)
+            # decode trick
+            logits = logits/tem
+            prob = softmax(logits[:,-1,:],-1).squeeze(0)           # prob   (vocab,)
+            prob_sorted,indices_sorted = torch.sort(prob,descending=True)
+            prob_cumsum = prob_sorted.cumsum(dim=-1)
+            k = torch.searchsorted(prob_cumsum,top_p)
+            prob_top_p = prob_sorted*(torch.arange(prob.size(-1),device=device) <= k)
+            prob_top_p_twodim = rearrange(prob_top_p," vocab_size -> 1 vocab_size")
+            next_token = indices_sorted[torch.multinomial(prob_top_p_twodim,1).item()]             # multinomial能够实现归一化   # type: ignore
+            if next_token == endID:
+                print(f"len of tokens: {tokens.size(1)}")
+                break
+            next_token = next_token.reshape(1,1)
+            tokens = torch.cat([tokens,next_token],dim=-1)
     
     tokens = rearrange(tokens,"1 seq_len -> seq_len").tolist()
     return tokenizer.decode(tokens)
